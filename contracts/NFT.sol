@@ -10,9 +10,12 @@ contract NFT is ERC721Enumerable {
     error MintingIsNotAllowed();
     error OwnerIsNotSender();
     error BurningIsNotAllowed();
+    error ClaimingRefundIsNotAllowed();
+    error CannotRefundZero();
 
     event Mint(address indexed holder, uint256 tokenId);
     event Burn(address indexed holder, uint256 tokenId);
+    event ClaimRefund(address indexed holder, uint256 tokenId);
 
     struct Holder {
         uint256 mintPrice;
@@ -24,6 +27,8 @@ contract NFT is ERC721Enumerable {
     address public factory;
     address public creator;
     address public paymentToken;
+
+    uint32 public minRequiredSales;
 
     uint256 public timestamp;
 
@@ -41,6 +46,7 @@ contract NFT is ERC721Enumerable {
         string memory name_,
         string memory symbol_,
         address factory_,
+        uint32 minRequiredSales_,
         uint256 timestamp_,
         uint256 startPrice_,
         uint256 priceIncrement_,
@@ -48,6 +54,7 @@ contract NFT is ERC721Enumerable {
         address creator_
     ) ERC721(name_, symbol_) {
         factory = factory_;
+        minRequiredSales = minRequiredSales_;
         timestamp = timestamp_;
         startPrice = startPrice_;
         priceIncrement = priceIncrement_;
@@ -109,11 +116,30 @@ contract NFT is ERC721Enumerable {
 
     function burn(uint256 tokenId) public virtual {
         if (ownerOf(tokenId) != msg.sender) revert OwnerIsNotSender();
-        if (block.timestamp < timestamp) revert BurningIsNotAllowed();
+        if (block.timestamp < timestamp && totalEverMinted < minRequiredSales)
+            revert BurningIsNotAllowed();
 
         _burn(tokenId);
 
         delete holderByTokenId[tokenId];
         emit Burn(msg.sender, tokenId);
+    }
+
+    function claimRefund(uint256 tokenId) public {
+        if (ownerOf(tokenId) != msg.sender) revert OwnerIsNotSender();
+        if (block.timestamp < timestamp && totalEverMinted >= minRequiredSales)
+            revert ClaimingRefundIsNotAllowed();
+
+        Holder memory holder = holderByTokenId[tokenId];
+
+        if (holder.mintPrice == 0) revert CannotRefundZero();
+        IERC20(holder.paymentToken).transfer(msg.sender, holder.mintPrice);
+        _burn(tokenId);
+
+        emit ClaimRefund(msg.sender, tokenId);
+    }
+
+    function _baseURI() internal view virtual override returns (string memory) {
+        return Factory(factory).getBaseUri();
     }
 }
