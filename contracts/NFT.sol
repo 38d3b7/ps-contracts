@@ -12,10 +12,16 @@ contract NFT is ERC721Enumerable {
     error BurningIsNotAllowed();
     error ClaimingRefundIsNotAllowed();
     error CannotRefundZero();
+    error CallerIsNotCreator();
+    error WithdrawalNotAllowed();
 
     event Mint(address indexed holder, uint256 tokenId);
     event Burn(address indexed holder, uint256 tokenId);
     event ClaimRefund(address indexed holder, uint256 tokenId);
+    event WithdrawCreatorsFunds(
+        address indexed creator,
+        uint256 withdrawAmount
+    );
 
     struct Holder {
         uint256 mintPrice;
@@ -125,7 +131,7 @@ contract NFT is ERC721Enumerable {
         emit Burn(msg.sender, tokenId);
     }
 
-    function claimRefund(uint256 tokenId) public {
+    function claimRefund(uint256 tokenId) external {
         if (ownerOf(tokenId) != msg.sender) revert OwnerIsNotSender();
         if (block.timestamp < timestamp && totalEverMinted >= minRequiredSales)
             revert ClaimingRefundIsNotAllowed();
@@ -137,6 +143,19 @@ contract NFT is ERC721Enumerable {
         _burn(tokenId);
 
         emit ClaimRefund(msg.sender, tokenId);
+    }
+
+    function withdrawCreatorsFunds() external {
+        if (msg.sender != creator) revert CallerIsNotCreator();
+        if (block.timestamp < timestamp && totalEverMinted < minRequiredSales)
+            revert WithdrawalNotAllowed();
+
+        IERC20(paymentToken).transfer(creator, withdrawalAmount);
+
+        totalEarnedByCreator += withdrawalAmount;
+        withdrawalAmount = 0;
+
+        emit WithdrawCreatorsFunds(msg.sender, withdrawalAmount);
     }
 
     function _baseURI() internal view virtual override returns (string memory) {
