@@ -29,6 +29,12 @@ class Network {
     const provider = await this._getProvider();
     await provider.send("evm_mine", [timestamp]);
   }
+
+  async increaseTime(seconds) {
+    const provider = await this._getProvider();
+    await provider.send("evm_increaseTime", [seconds]);
+    await provider.send("evm_mine", []);
+  }
 }
 
 export default Network;

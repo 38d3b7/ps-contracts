@@ -133,7 +133,7 @@ contract NFT is ERC721Enumerable {
 
     function claimRefund(uint256 tokenId) external {
         if (ownerOf(tokenId) != msg.sender) revert OwnerIsNotSender();
-        if (block.timestamp < timestamp && totalEverMinted >= minRequiredSales)
+        if (block.timestamp < timestamp || totalEverMinted >= minRequiredSales)
             revert ClaimingRefundIsNotAllowed();
 
         Holder memory holder = holderByTokenId[tokenId];

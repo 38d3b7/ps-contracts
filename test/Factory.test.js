@@ -13,7 +13,7 @@ describe("Factory", function () {
   let mockPyUsd;
   let networkHelper;
 
-  const startPrice = ethers.parseUnits("25", 18);
+  const startPrice = ethers.parseUnits("25", 6);
   const priceIncrement = 5;
   const platformFee = 10;
   const baseUri = "https://placeholder.com/";
