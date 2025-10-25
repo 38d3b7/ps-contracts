@@ -811,4 +811,207 @@ describe("NFT", function () {
       );
     });
   });
+
+  describe("WithdrawCreatorsFunds", function () {
+    beforeEach(async function () {
+      await mockPyUsd
+        .connect(buyer1)
+        .approve(await nft.getAddress(), ethers.parseUnits("10000", 6));
+      await mockPyUsd
+        .connect(buyer2)
+        .approve(await nft.getAddress(), ethers.parseUnits("10000", 6));
+    });
+
+    it("should allow withdrawal after timestamp passes", async function () {
+      await nft.connect(buyer1).mint();
+      await nft.connect(buyer1).mint();
+
+      const withdrawalAmountBefore = await nft.withdrawalAmount();
+      expect(withdrawalAmountBefore).to.be.gt(0);
+
+      const nftTimestamp = await nft.timestamp();
+      const blockBefore = await ethers.provider.getBlock("latest");
+      const timeToIncrease = Number(nftTimestamp) - blockBefore.timestamp + 1;
+
+      await ethers.provider.send("evm_increaseTime", [timeToIncrease]);
+      await ethers.provider.send("evm_mine", []);
+
+      const creatorBalanceBefore = await mockPyUsd.balanceOf(creator.address);
+
+      await nft.connect(creator).withdrawCreatorsFunds();
+
+      const creatorBalanceAfter = await mockPyUsd.balanceOf(creator.address);
+      expect(creatorBalanceAfter - creatorBalanceBefore).to.equal(
+        withdrawalAmountBefore
+      );
+    });
+
+    it("should allow withdrawal after minRequiredSales reached", async function () {
+      for (let i = 0; i < minRequiredSales; i++) {
+        await nft.connect(buyer1).mint();
+      }
+
+      expect(await nft.totalEverMinted()).to.be.gte(minRequiredSales);
+
+      const withdrawalAmountBefore = await nft.withdrawalAmount();
+      const creatorBalanceBefore = await mockPyUsd.balanceOf(creator.address);
+
+      await nft.connect(creator).withdrawCreatorsFunds();
+
+      const creatorBalanceAfter = await mockPyUsd.balanceOf(creator.address);
+      expect(creatorBalanceAfter - creatorBalanceBefore).to.equal(
+        withdrawalAmountBefore
+      );
+    });
+
+    it("should reset withdrawalAmount to zero after withdrawal", async function () {
+      await nft.connect(buyer1).mint();
+
+      const nftTimestamp = await nft.timestamp();
+      const blockBefore = await ethers.provider.getBlock("latest");
+      const timeToIncrease = Number(nftTimestamp) - blockBefore.timestamp + 1;
+
+      await ethers.provider.send("evm_increaseTime", [timeToIncrease]);
+      await ethers.provider.send("evm_mine", []);
+
+      await nft.connect(creator).withdrawCreatorsFunds();
+
+      expect(await nft.withdrawalAmount()).to.equal(0);
+    });
+
+    it("should update totalEarnedByCreator correctly", async function () {
+      await nft.connect(buyer1).mint();
+
+      const withdrawalAmountBefore = await nft.withdrawalAmount();
+      const totalEarnedBefore = await nft.totalEarnedByCreator();
+
+      const nftTimestamp = await nft.timestamp();
+      const blockBefore = await ethers.provider.getBlock("latest");
+      const timeToIncrease = Number(nftTimestamp) - blockBefore.timestamp + 1;
+
+      await ethers.provider.send("evm_increaseTime", [timeToIncrease]);
+      await ethers.provider.send("evm_mine", []);
+
+      await nft.connect(creator).withdrawCreatorsFunds();
+
+      const totalEarnedAfter = await nft.totalEarnedByCreator();
+      expect(totalEarnedAfter - totalEarnedBefore).to.equal(
+        withdrawalAmountBefore
+      );
+    });
+
+    it("should emit WithdrawCreatorsFunds event", async function () {
+      await nft.connect(buyer1).mint();
+
+      const withdrawalAmount = await nft.withdrawalAmount();
+
+      const nftTimestamp = await nft.timestamp();
+      const blockBefore = await ethers.provider.getBlock("latest");
+      const timeToIncrease = Number(nftTimestamp) - blockBefore.timestamp + 1;
+
+      await ethers.provider.send("evm_increaseTime", [timeToIncrease]);
+      await ethers.provider.send("evm_mine", []);
+
+      await expect(nft.connect(creator).withdrawCreatorsFunds())
+        .to.emit(nft, "WithdrawCreatorsFunds")
+        .withArgs(creator.address, withdrawalAmount);
+    });
+
+    it("should revert if caller is not creator", async function () {
+      await nft.connect(buyer1).mint();
+
+      const nftTimestamp = await nft.timestamp();
+      const blockBefore = await ethers.provider.getBlock("latest");
+      const timeToIncrease = Number(nftTimestamp) - blockBefore.timestamp + 1;
+
+      await ethers.provider.send("evm_increaseTime", [timeToIncrease]);
+      await ethers.provider.send("evm_mine", []);
+
+      await expect(
+        nft.connect(buyer1).withdrawCreatorsFunds()
+      ).to.be.revertedWithCustomError(nft, "CallerIsNotCreator");
+    });
+
+    it("should revert if conditions not met", async function () {
+      await nft.connect(buyer1).mint();
+
+      await expect(
+        nft.connect(creator).withdrawCreatorsFunds()
+      ).to.be.revertedWithCustomError(nft, "WithdrawalNotAllowed");
+    });
+
+    it("should allow multiple withdrawals as funds accumulate", async function () {
+      for (let i = 0; i < minRequiredSales; i++) {
+        await nft.connect(buyer1).mint();
+      }
+
+      const firstWithdrawal = await nft.withdrawalAmount();
+      await nft.connect(creator).withdrawCreatorsFunds();
+
+      expect(await nft.totalEarnedByCreator()).to.equal(firstWithdrawal);
+
+      await nft.connect(buyer1).mint();
+      await nft.connect(buyer1).mint();
+
+      const secondWithdrawal = await nft.withdrawalAmount();
+      expect(secondWithdrawal).to.be.gt(0);
+
+      const creatorBalanceBefore = await mockPyUsd.balanceOf(creator.address);
+      await nft.connect(creator).withdrawCreatorsFunds();
+      const creatorBalanceAfter = await mockPyUsd.balanceOf(creator.address);
+
+      expect(creatorBalanceAfter - creatorBalanceBefore).to.equal(
+        secondWithdrawal
+      );
+      expect(await nft.totalEarnedByCreator()).to.equal(
+        firstWithdrawal + secondWithdrawal
+      );
+    });
+
+    it("should decrease contract balance after withdrawal", async function () {
+      await nft.connect(buyer1).mint();
+
+      const nftTimestamp = await nft.timestamp();
+      const blockBefore = await ethers.provider.getBlock("latest");
+      const timeToIncrease = Number(nftTimestamp) - blockBefore.timestamp + 1;
+
+      await ethers.provider.send("evm_increaseTime", [timeToIncrease]);
+      await ethers.provider.send("evm_mine", []);
+
+      const withdrawalAmount = await nft.withdrawalAmount();
+      const contractBalanceBefore = await mockPyUsd.balanceOf(
+        await nft.getAddress()
+      );
+
+      await nft.connect(creator).withdrawCreatorsFunds();
+
+      const contractBalanceAfter = await mockPyUsd.balanceOf(
+        await nft.getAddress()
+      );
+      expect(contractBalanceBefore - contractBalanceAfter).to.equal(
+        withdrawalAmount
+      );
+    });
+
+    it("should work at exact timestamp boundary", async function () {
+      await nft.connect(buyer1).mint();
+
+      const nftTimestamp = await nft.timestamp();
+      const blockBefore = await ethers.provider.getBlock("latest");
+      const timeToIncrease = Number(nftTimestamp) - blockBefore.timestamp;
+
+      await ethers.provider.send("evm_increaseTime", [timeToIncrease]);
+      await ethers.provider.send("evm_mine", []);
+
+      const withdrawalAmount = await nft.withdrawalAmount();
+      const creatorBalanceBefore = await mockPyUsd.balanceOf(creator.address);
+
+      await nft.connect(creator).withdrawCreatorsFunds();
+
+      const creatorBalanceAfter = await mockPyUsd.balanceOf(creator.address);
+      expect(creatorBalanceAfter - creatorBalanceBefore).to.equal(
+        withdrawalAmount
+      );
+    });
+  });
 });

@@ -153,9 +153,10 @@ contract NFT is ERC721Enumerable {
         IERC20(paymentToken).transfer(creator, withdrawalAmount);
 
         totalEarnedByCreator += withdrawalAmount;
-        withdrawalAmount = 0;
 
         emit WithdrawCreatorsFunds(msg.sender, withdrawalAmount);
+
+        withdrawalAmount = 0;
     }
 
     function _baseURI() internal view virtual override returns (string memory) {
