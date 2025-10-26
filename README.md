@@ -1,3 +1,52 @@
+# Product Starter
+
+## Overview
+
+Product Starter is a decentralized product launch and discovery platform that enables creators to launch
+time-bound NFT campaigns with dynamic pricing. The platform features a factory pattern for
+campaign deployment, ERC721 NFT minting with linear price increases, and refund mechanisms for
+unsuccessful campaigns. The users will be able to purchase NFTs using PYUSD and the NFTs
+will represent various perks of a certain product they receive.
+
+## Architecture
+
+### Tech Stack
+
+- Solidity for smart contracts
+- Hardhat 3 as a development framework
+- JavaScript for the tests
+
+### Smart Contracts
+
+The system consists of two core contracts:
+
+1. Factory.sol - Campaign factory and platform configuration
+2. NFT.sol - Individual campaign ERC721 NFT contract
+
+#### Factory
+
+Deploys and configures individual NFT campaign contracts using such parameters as: name,
+symbol, minimum required sales, timestamp, start price, price increment, payment token and
+creator address. Maintains platform settings including treasury address, platform fee
+percentage, and base URI for metadata.
+
+#### NFT
+
+Individual campaign contract implementing ERC721 NFT standard with dynamic pricing, time-bound
+minting, success/failure conditions, and refund mechanisms. The contract implements a linear
+pricing model:
+currentPrice = startPrice + (priceIncrement × totalEverMinted)
+The users can mint the NFTs within a specified timeframe and based on the minting price
+formula. Each mint increases the price by the priceIncrement parameter. The campaign is
+considered successful when the minRequiredSales is reached. The creator then is able to
+withdraw their funds by calling withdrawCreatorsFunds function. If the campaign fails, the
+users are able to get their money back by calling claimRefund function. To redeem the
+product perks, the users can simply burn their NFT.
+
+## AI Usage
+
+Some test cases were assisted by Claude Code.
+
 # Sample Hardhat 3 Beta Project (`mocha` and `ethers`)
 
 This project showcases a Hardhat 3 Beta project using `mocha` for tests and the `ethers` library for Ethereum interactions.
